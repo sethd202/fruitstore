@@ -11,7 +11,7 @@ const { initializeApp, applicationDefault } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
 initializeApp({ credential: applicationDefault() });
-const db = getFirestore();
+const db = getFirestore({ databaseId: 'fruitstore-db' });
 
 const app = express();
 const PORT = process.env.PORT || 8080;
