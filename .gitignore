@@ -1,0 +1,14 @@
+# Node dependencies
+node_modules/
+functions/node_modules/
+
+# Environment variables — never commit secrets
+.env
+
+# Google service account key files (any naming convention)
+*-service-account.json
+*serviceAccountKey.json
+*-adminsdk-*.json
+*credentials*.json
+*-key.json
+service-account*.json

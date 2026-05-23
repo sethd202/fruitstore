@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fresh Fruit Store</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-content">
+      <h1 class="store-name">Fresh Fruit Store</h1>
+      <!-- Simple inline SVG cart icon; no external dependencies needed -->
+      <div class="cart-icon" aria-label="Shopping cart">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="9" cy="21" r="1"></circle>
+          <circle cx="20" cy="21" r="1"></circle>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+        </svg>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Product grid ───────────────────────────────────────────────────── -->
+  <main class="main-content">
+    <h2 class="section-title">Today's Produce</h2>
+    <div id="product-grid" class="product-grid">
+      <!-- Cards are injected here by the script below after fetching from the API -->
+      <p class="loading">Loading products...</p>
+    </div>
+  </main>
+
+  <script>
+    // ── Per-fruit color palette used for the card image area ──────────────
+    // Background color fills the image area; accent color is for text/border accents.
+    const fruitStyles = {
+      apple:      { bg: '#fde8e8', accent: '#c0392b' },
+      cherry:     { bg: '#fce4ec', accent: '#880e4f' },
+      peach:      { bg: '#fff3e0', accent: '#e65100' },
+      blueberry:  { bg: '#ede7f6', accent: '#4527a0' },
+      mango:      { bg: '#fff8e1', accent: '#f57f17' },
+      banana:     { bg: '#fffde7', accent: '#f9a825' }
+    };
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    // Converts the Firestore "sold_by" value into a human-readable unit label.
+    function formatUnit(soldBy) {
+      const labels = { each: 'each', lb: 'per lb', pint: 'per pint' };
+      return labels[soldBy] || soldBy;
+    }
+
+    // Builds the HTML string for a single product card.
+    // The stock badge starts as "Checking..." and is updated asynchronously
+    // once the checkStock Cloud Function returns.
+    function buildCard(product) {
+      const style = fruitStyles[product.id] || { bg: '#e8f5e9', accent: '#2e7d32' };
+      const unitLabel = formatUnit(product.sold_by);
+      const price = Number(product.price).toFixed(2);
+
+      return `
+        <div class="product-card">
+          <!-- Colored image area — loads the GCS image; falls back to solid color if unavailable -->
+          <div class="product-image" style="background-color: ${style.bg};">
+            <img
+              src="${product.image_url}"
+              alt="${product.name}"
+              onerror="this.style.display='none'"
+            >
+          </div>
+
+          <div class="product-info">
+            <h2 class="product-name">${product.name}</h2>
+
+            <p class="product-price">
+              $${price}
+              <span class="product-unit">${unitLabel}</span>
+            </p>
+
+            <!-- Badge is updated once checkStock Cloud Function responds -->
+            <span class="badge badge-loading" id="badge-${product.id}">Checking...</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Updates the stock badge for a card after the Cloud Function responds.
+    function updateBadge(productId, inStock) {
+      const badge = document.getElementById(`badge-${productId}`);
+      if (!badge) return;
+
+      if (inStock === null) {
+        // Function not yet deployed or network error
+        badge.textContent = 'Status Unknown';
+        badge.className = 'badge badge-unknown';
+      } else if (inStock) {
+        badge.textContent = 'In Stock';
+        badge.className = 'badge badge-in-stock';
+      } else {
+        badge.textContent = 'Out of Stock';
+        badge.className = 'badge badge-out-of-stock';
+      }
+    }
+
+    // ── Cloud Function call ───────────────────────────────────────────────
+    // Firebase HTTPS Callable Functions expose a standard HTTP POST interface.
+    // Request body:  { "data": { "product": "<id>" } }
+    // Response body: { "result": { "inStock": true|false } }
+    async function checkStock(projectId, region, productId) {
+      const url = `https://${region}-${projectId}.cloudfunctions.net/checkStock`;
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: { product: productId } })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const json = await response.json();
+        return json.result.inStock;
+      } catch (err) {
+        // If the function is not yet deployed, badges will show "Status Unknown"
+        console.warn(`checkStock failed for "${productId}":`, err.message);
+        return null;
+      }
+    }
+
+    // ── Initialisation ────────────────────────────────────────────────────
+    async function init() {
+      const grid = document.getElementById('product-grid');
+
+      try {
+        // 1. Fetch runtime config (GCP project ID + function region) from Express
+        const config = await fetch('/api/config').then(r => r.json());
+
+        // 2. Fetch product catalog from Firestore (via Express /api/products)
+        const products = await fetch('/api/products').then(r => r.json());
+
+        if (!Array.isArray(products) || products.length === 0) {
+          grid.innerHTML = '<p class="loading">No products found — run <code>npm run seed</code> to populate Firestore.</p>';
+          return;
+        }
+
+        // 3. Render all product cards immediately (badges show "Checking...")
+        grid.innerHTML = products.map(buildCard).join('');
+
+        // 4. Call the checkStock Cloud Function for each card and update its badge.
+        //    Calls are made concurrently so the page feels responsive.
+        await Promise.all(
+          products.map(async product => {
+            const inStock = await checkStock(config.projectId, config.region, product.id);
+            updateBadge(product.id, inStock);
+          })
+        );
+
+      } catch (err) {
+        console.error('Failed to load store:', err);
+        grid.innerHTML = '<p class="loading">Could not load products. Check the console for details.</p>';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
