@@ -7,8 +7,8 @@ require('dotenv').config();
 const { initializeApp, applicationDefault } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
-initializeApp({ credential: applicationDefault() });
-const db = getFirestore({ databaseId: 'fruitstore-db' });
+const firebaseApp = initializeApp({ credential: applicationDefault() });
+const db = getFirestore(firebaseApp, 'fruitstore-db');
 
 // -------------------------------------------------------------------------
 // Product data with intentionally varied "sold_by" fields.
