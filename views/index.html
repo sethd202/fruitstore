@@ -110,7 +110,7 @@
     // Request body:  { "data": { "product": "<id>" } }
     // Response body: { "result": { "inStock": true|false } }
     async function checkStock(productId) {
-      const url = 'https://checkstock-cowocdfhsa-uc.a.run.app';
+      const url = 'https://checkstock-cowocdfhsa-uc.a.run.app/checkStock';
       try {
         const response = await fetch(url, {
           method: 'POST',
