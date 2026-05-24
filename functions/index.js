@@ -21,31 +21,18 @@ initializeApp();
 //
 // Returns:
 //   { "result": { "inStock": true | false } }
-exports.checkStock = functions.https.onCall(async (data, context) => {
-  const productId = data.product;
-
-  // Validate that the caller supplied a product ID
+exports.checkStock = functions.https.onCall(async (request) => {
+  const productId = request.data?.product || request?.product;
   if (!productId || typeof productId !== 'string') {
     throw new functions.https.HttpsError(
       'invalid-argument',
       'The "product" field is required and must be a string.'
     );
   }
-
-  // Read the product document from Firestore
-  const doc = await getFirestore(getApp(), 'fruitstore-db')
-    .collection('products')
-    .doc(productId)
-    .get();
-
+  const db = getFirestore(getApp(), 'fruitstore-db');
+  const doc = await db.collection('products').doc(productId).get();
   if (!doc.exists) {
-    throw new functions.https.HttpsError(
-      'not-found',
-      `Product "${productId}" was not found in the catalog.`
-    );
+    throw new functions.https.HttpsError('not-found', `Product "${productId}" not found.`);
   }
-
-  // stock > 0 means in stock
-  const stock = doc.data().stock;
-  return { inStock: stock > 0 };
+  return { inStock: doc.data().stock > 0 };
 });
