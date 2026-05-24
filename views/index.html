@@ -109,8 +109,8 @@
     // Firebase HTTPS Callable Functions expose a standard HTTP POST interface.
     // Request body:  { "data": { "product": "<id>" } }
     // Response body: { "result": { "inStock": true|false } }
-    async function checkStock(projectId, region, productId) {
-      const url = `https://${region}-${projectId}.cloudfunctions.net/checkStock`;
+    async function checkStock(productId) {
+      const url = 'https://checkstock-cowocdfhsa-uc.a.run.app';
       try {
         const response = await fetch(url, {
           method: 'POST',
@@ -136,10 +136,7 @@
       const grid = document.getElementById('product-grid');
 
       try {
-        // 1. Fetch runtime config (GCP project ID + function region) from Express
-        const config = await fetch('/api/config').then(r => r.json());
-
-        // 2. Fetch product catalog from Firestore (via Express /api/products)
+        // 1. Fetch product catalog from Firestore (via Express /api/products)
         const products = await fetch('/api/products').then(r => r.json());
 
         if (!Array.isArray(products) || products.length === 0) {
@@ -154,7 +151,7 @@
         //    Calls are made concurrently so the page feels responsive.
         await Promise.all(
           products.map(async product => {
-            const inStock = await checkStock(config.projectId, config.region, product.id);
+            const inStock = await checkStock(product.id);
             updateBadge(product.id, inStock);
           })
         );
