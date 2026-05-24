@@ -4,10 +4,10 @@
   "description": "Firebase Cloud Functions for the Fruit Store",
   "main": "index.js",
   "engines": {
-    "node": "18"
+    "node": "20"
   },
   "dependencies": {
-    "firebase-admin": "^12.1.0",
-    "firebase-functions": "^4.8.0"
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^7.2.5"
   }
 }
