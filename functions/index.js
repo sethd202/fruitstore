@@ -3,7 +3,7 @@
 // (See README for deployment notes)
 
 const functions = require('firebase-functions');
-const { initializeApp } = require('firebase-admin/app');
+const { initializeApp, getApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
 // Initialize Firebase Admin SDK.
@@ -33,7 +33,7 @@ exports.checkStock = functions.https.onCall(async (data, context) => {
   }
 
   // Read the product document from Firestore
-  const doc = await getFirestore()
+  const doc = await getFirestore(getApp(), 'fruitstore-db')
     .collection('products')
     .doc(productId)
     .get();
